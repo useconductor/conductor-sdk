@@ -1,0 +1,46 @@
+{
+  "name": "@useconductor/sdk",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for Conductor — build plugins and connect to Conductor programmatically",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "conductor",
+    "ai",
+    "plugin",
+    "sdk",
+    "claude",
+    "cursor"
+  ],
+  "author": "Alexander Wondwossen",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "typescript": "^5.9.3"
+  }
+}
