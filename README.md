@@ -8,11 +8,12 @@ npm install @useconductor/sdk
 
 ---
 
-## Connect and call tools
+## Quick start
 
 ```typescript
 import { ConductorClient } from '@useconductor/sdk';
 
+// Connect to a local Conductor process via stdio (default)
 const client = new ConductorClient({ transport: 'stdio' });
 await client.connect();
 
@@ -22,10 +23,11 @@ console.log(`${tools.length} tools available`);
 
 // Call a tool — returns full MCP result
 const result = await client.call('calculator_evaluate', { expression: '2 + 2' });
+console.log(result.content); // [{ type: 'text', text: '4' }]
 
-// Or get just the text output
-const text = await client.callText('github_list_repos', { owner: 'useconductor' });
-console.log(text);
+// Or get just the text output directly (throws on tool error)
+const text = await client.callText('calculator_evaluate', { expression: '2 + 2' });
+console.log(text); // "4"
 
 await client.disconnect();
 ```
@@ -52,6 +54,8 @@ const client = new ConductorClient({
 ---
 
 ## Build a plugin
+
+Implement the `Plugin` interface and export a default instance. Conductor will load the compiled `.js` file from `~/.conductor/plugins/` automatically.
 
 ```typescript
 import { Plugin, PluginTool, IConfig } from '@useconductor/sdk';
@@ -85,7 +89,7 @@ class WeatherPlugin implements Plugin {
         },
         handler: async (args) => {
           const city = args.city as string;
-          // ... fetch weather
+          // ... fetch weather using this.apiKey
           return `Weather in ${city}: 72°F, sunny`;
         },
       },
@@ -96,9 +100,7 @@ class WeatherPlugin implements Plugin {
 export default new WeatherPlugin();
 ```
 
-Drop the compiled `.js` output into `~/.conductor/plugins/` and Conductor will pick it up automatically.
-
-Scaffold with tests:
+Scaffold a plugin with tests:
 
 ```bash
 conductor plugin create my-plugin
@@ -108,7 +110,7 @@ conductor plugin create my-plugin
 
 ## Plugin with secrets
 
-Use `configSchema` to declare fields stored in the OS keychain:
+Use `configSchema` to declare config fields stored in the OS keychain:
 
 ```typescript
 import { Plugin, PluginTool, PluginConfigSchema, IConfig } from '@useconductor/sdk';
@@ -148,8 +150,8 @@ Mark tools that modify state as `requiresApproval: true` — Conductor will prom
   name: 'delete_record',
   description: 'Permanently delete a record',
   requiresApproval: true,
-  inputSchema: { ... },
-  handler: async (args) => { ... },
+  inputSchema: { type: 'object', properties: {} },
+  handler: async (args) => { /* ... */ },
 }
 ```
 
@@ -177,22 +179,22 @@ async getContext(): Promise<string | null> {
 new ConductorClient(options?: ConductorClientOptions)
 ```
 
-| Method | Description |
-|---|---|
-| `connect()` | Connect to the Conductor server |
-| `disconnect()` | Disconnect |
-| `listTools()` | List all available tools |
-| `call(name, args?)` | Call a tool, returns full MCP result |
-| `callText(name, args?)` | Call a tool, returns text output (throws on error) |
-| `isConnected()` | Returns true if connected |
+| Method | Returns | Description |
+|---|---|---|
+| `connect()` | `Promise<void>` | Connect to the Conductor server. Must be called before other methods. |
+| `disconnect()` | `Promise<void>` | Disconnect from the server. |
+| `listTools()` | `Promise<MCPTool[]>` | List all tools exposed by the server. |
+| `call(name, args?)` | `Promise<MCPCallResult>` | Call a tool, returns the full MCP result. |
+| `callText(name, args?)` | `Promise<string>` | Call a tool and return the concatenated text output. Throws if the tool returns an error. |
+| `isConnected()` | `boolean` | Returns `true` if currently connected. |
 
 ### `ConductorClientOptions`
 
 ```typescript
-// Local (stdio)
+// Local process via stdio (default)
 { transport: 'stdio'; command?: string; args?: string[]; env?: Record<string, string> }
 
-// Remote (HTTP/SSE)
+// Remote server via HTTP/SSE
 { transport: 'http'; url: string }
 ```
 
@@ -202,6 +204,14 @@ new ConductorClient(options?: ConductorClientOptions)
 
 ```typescript
 import type {
+  // Client
+  ConductorClientOptions,
+  StdioTransportOptions,
+  HttpTransportOptions,
+  MCPTool,
+  MCPCallResult,
+
+  // Plugin system
   Plugin,
   PluginTool,
   PluginConfigSchema,
@@ -209,12 +219,47 @@ import type {
   SchemaProperty,
   ToolContext,
   IConfig,
-  MCPTool,
-  MCPCallResult,
-  ConductorClientOptions,
-  StdioTransportOptions,
-  HttpTransportOptions,
 } from '@useconductor/sdk';
+```
+
+### `Plugin`
+
+```typescript
+interface Plugin {
+  name: string;
+  description: string;
+  version: string;
+  configSchema?: PluginConfigSchema;
+  initialize(config: IConfig): Promise<void>;
+  isConfigured(): boolean;
+  getTools(): PluginTool[];
+  getContext?(): Promise<string | null>;
+}
+```
+
+### `PluginTool`
+
+```typescript
+interface PluginTool {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: 'object';
+    properties: Record<string, SchemaProperty>;
+    required?: string[];
+  };
+  requiresApproval?: boolean;
+  handler: (args: Record<string, unknown>, context?: ToolContext) => Promise<string>;
+}
+```
+
+### `MCPCallResult`
+
+```typescript
+interface MCPCallResult {
+  content: Array<{ type: string; text?: string }>;
+  isError?: boolean;
+}
 ```
 
 ---
